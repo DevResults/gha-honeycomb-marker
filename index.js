@@ -81,6 +81,7 @@ try {
         core.setOutput('created-at', response.data.created_at);
         core.setOutput('updated-at', response.data.updated_at);
         core.setOutput('message', response.data.message);
+        core.setOutput('type', response.data.type);
         core.setOutput('start-time', response.data.start_time);
         core.setOutput('end-time', response.data.end_time);
     }
