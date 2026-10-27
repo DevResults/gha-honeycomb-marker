@@ -82,7 +82,7 @@ try {
         core.setOutput('updated-at', response.data.updated_at);
         core.setOutput('message', response.data.message);
         core.setOutput('start-time', response.data.start_time);
-        core.setOutput('end-time', response.data.start_time);
+        core.setOutput('end-time', response.data.end_time);
     }
 
     const processError = (error) => {
