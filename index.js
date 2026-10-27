@@ -1,6 +1,5 @@
 const core = require('@actions/core');
 //const github = require('@actions/github');
-const axios = require('axios');
 
 class HoneyCombMarkerRequestDto {
     id;
@@ -38,11 +37,38 @@ try {
 
     const requestDto = new HoneyCombMarkerRequestDto(id, dataset, type, message, startTime, endTime, url);
 
-    let axios_config = {
-        headers: {
-            "Content-Type": "application/json",
-            "X-Honeycomb-Team": apiKey
+    const send = async (method, url) => {
+        const response = await fetch(url, {
+            method,
+            headers: {
+                "Content-Type": "application/json",
+                "X-Honeycomb-Team": apiKey
+            },
+            body: JSON.stringify(requestDto)
+        });
+
+        const text = await response.text();
+        let data;
+        try {
+            data = text ? JSON.parse(text) : {};
+        } catch {
+            data = { error: text };
         }
+
+        const result = {
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries(response.headers),
+            data
+        };
+
+        if (!response.ok) {
+            const error = new Error(`Request failed with status ${response.status}`);
+            error.response = result;
+            throw error;
+        }
+
+        return result;
     }
 
     this.treat_missing_dataset_as_warning = treat_missing_dataset_as_warning;
@@ -61,6 +87,12 @@ try {
     }
 
     const processError = (error) => {
+        if (!error.response) {
+            console.log(error);
+            core.setFailed(error.message);
+            return;
+        }
+
         console.log(error.response.data.error);
         console.log(error.response.status);
         console.log(error.response.headers);
@@ -76,7 +108,7 @@ try {
 
     switch (operation.toLowerCase()) {
         case 'create':
-            axios.post(`https://api.honeycomb.io/1/markers/${dataset}`, requestDto, axios_config)
+            send('POST', `https://api.honeycomb.io/1/markers/${dataset}`)
                 .then(processResponse)
                 .catch(processError);
             break;
@@ -84,7 +116,7 @@ try {
             if (!requestDto.id) throw new Error('Honeycomb marker `id` is required for update operation type.')
             if (!requestDto.dataset) throw new Error('Honeycomb marker `dataset` is required for update operation type.')
 
-            axios.put(`https://api.honeycomb.io/1/markers/${dataset}/${requestDto.id}`, requestDto, axios_config)
+            send('PUT', `https://api.honeycomb.io/1/markers/${dataset}/${requestDto.id}`)
                 .then(processResponse)
                 .catch(processError);
             break;
