@@ -1,6 +1,4 @@
 const core = require('@actions/core');
-//const github = require('@actions/github');
-const axios = require('axios');
 
 class HoneyCombMarkerRequestDto {
     id;
@@ -38,11 +36,38 @@ try {
 
     const requestDto = new HoneyCombMarkerRequestDto(id, dataset, type, message, startTime, endTime, url);
 
-    let axios_config = {
-        headers: {
-            "Content-Type": "application/json",
-            "X-Honeycomb-Team": apiKey
+    const send = async (method, url) => {
+        const response = await fetch(url, {
+            method,
+            headers: {
+                "Content-Type": "application/json",
+                "X-Honeycomb-Team": apiKey
+            },
+            body: JSON.stringify(requestDto)
+        });
+
+        const text = await response.text();
+        let data;
+        try {
+            data = (text ? JSON.parse(text) : null) ?? {};
+        } catch {
+            data = { error: text };
         }
+
+        const result = {
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries(response.headers),
+            data
+        };
+
+        if (!response.ok) {
+            const error = new Error(`Request failed with status ${response.status}`);
+            error.response = result;
+            throw error;
+        }
+
+        return result;
     }
 
     this.treat_missing_dataset_as_warning = treat_missing_dataset_as_warning;
@@ -56,12 +81,23 @@ try {
         core.setOutput('created-at', response.data.created_at);
         core.setOutput('updated-at', response.data.updated_at);
         core.setOutput('message', response.data.message);
+        core.setOutput('type', response.data.type);
         core.setOutput('start-time', response.data.start_time);
-        core.setOutput('end-time', response.data.start_time);
+        core.setOutput('end-time', response.data.end_time ?? response.data.start_time);
     }
 
     const processError = (error) => {
-        console.log(error.response.data.error);
+        if (!error.response) {
+            console.log(error);
+            const cause = error.cause?.message || error.cause?.code;
+            core.setFailed(cause ? `${error.message}: ${cause}` : error.message);
+            return;
+        }
+
+        const errorMessage = error.response.data.error
+            || `${error.response.status} ${error.response.statusText}`.trim();
+
+        console.log(errorMessage);
         console.log(error.response.status);
         console.log(error.response.headers);
 
@@ -71,12 +107,12 @@ try {
             return;
         }
 
-        core.setFailed(error.response.data.error);
+        core.setFailed(errorMessage);
     }
 
     switch (operation.toLowerCase()) {
         case 'create':
-            axios.post(`https://api.honeycomb.io/1/markers/${dataset}`, requestDto, axios_config)
+            send('POST', `https://api.honeycomb.io/1/markers/${dataset}`)
                 .then(processResponse)
                 .catch(processError);
             break;
@@ -84,7 +120,7 @@ try {
             if (!requestDto.id) throw new Error('Honeycomb marker `id` is required for update operation type.')
             if (!requestDto.dataset) throw new Error('Honeycomb marker `dataset` is required for update operation type.')
 
-            axios.put(`https://api.honeycomb.io/1/markers/${dataset}/${requestDto.id}`, requestDto, axios_config)
+            send('PUT', `https://api.honeycomb.io/1/markers/${dataset}/${requestDto.id}`)
                 .then(processResponse)
                 .catch(processError);
             break;

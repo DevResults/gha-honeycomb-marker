@@ -101,3 +101,6 @@ dist
 
 # TernJS port file
 .tern-port
+
+# Vendored dependencies are committed in full
+!/node_modules/**
