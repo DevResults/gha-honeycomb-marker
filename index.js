@@ -49,7 +49,7 @@ try {
         const text = await response.text();
         let data;
         try {
-            data = text ? JSON.parse(text) : {};
+            data = (text ? JSON.parse(text) : null) ?? {};
         } catch {
             data = { error: text };
         }
@@ -83,17 +83,21 @@ try {
         core.setOutput('message', response.data.message);
         core.setOutput('type', response.data.type);
         core.setOutput('start-time', response.data.start_time);
-        core.setOutput('end-time', response.data.end_time);
+        core.setOutput('end-time', response.data.end_time ?? response.data.start_time);
     }
 
     const processError = (error) => {
         if (!error.response) {
             console.log(error);
-            core.setFailed(error.message);
+            const cause = error.cause?.message || error.cause?.code;
+            core.setFailed(cause ? `${error.message}: ${cause}` : error.message);
             return;
         }
 
-        console.log(error.response.data.error);
+        const errorMessage = error.response.data.error
+            || `${error.response.status} ${error.response.statusText}`.trim();
+
+        console.log(errorMessage);
         console.log(error.response.status);
         console.log(error.response.headers);
 
@@ -103,7 +107,7 @@ try {
             return;
         }
 
-        core.setFailed(error.response.data.error);
+        core.setFailed(errorMessage);
     }
 
     switch (operation.toLowerCase()) {
